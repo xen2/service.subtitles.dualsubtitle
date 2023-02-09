@@ -58,16 +58,6 @@ xbmcvfs.mkdirs(__temp__)
 
 __msg_box__       = xbmcgui.Dialog()
 
-__subtitlepath__  = translatePath("special://subtitles")
-
-if __subtitlepath__ == None:
-  __subtitlepath__ = ""
-
-__subtitle__      = ""
-if __subtitlepath__ != "":
-  __subtitle__      = __subtitlepath__ + "subtitle.srt"
-
-
 sys.path.append (__resource__)
 
 # Make sure the manual search button is disabled
@@ -91,11 +81,6 @@ def AddItem(name, url):
 
 
 def Search():
-  if __subtitle__ != "":
-    if xbmcvfs.exists(__subtitle__):
-      AddItem(__subtitle__, "plugin://%s/?action=download" % (__scriptid__))
-
-  AddItem(__language__(33002), "plugin://%s/?action=browse" % (__scriptid__))
   AddItem(__language__(33004), "plugin://%s/?action=browsedual" % (__scriptid__))
   AddItem(__language__(33008), "plugin://%s/?action=settings" % (__scriptid__))
 
@@ -159,7 +144,10 @@ def merge(file):
     bottom = not __addon__.getSetting('dualsub_swap') == 'true'
     for sub in file:
       try:
-        result = pysubs2.load(sub, encoding=charset_detect(sub, bottom))
+        tempSub = os.path.join(__temp__, "%s.srt" %(str(uuid.uuid4())))
+        xbmcvfs.copy(sub, tempSub)
+        tempSub = xbmcvfs.translatePath(tempSub)
+        result = pysubs2.load(tempSub, encoding=charset_detect(tempSub, bottom))
       except Exception as e:
         __msg_box__.ok(__language__(32031), str(e))
         raise e
@@ -289,86 +277,40 @@ def merge(file):
     subs[0].save(ass,format_='ass')
     return ass
 
-def unzip(zip, exts):
-  filename = None
-  for file in xbmcvfs.listdir(zip)[1]:
-    file = os.path.join(__temp__, file)
-    if (os.path.splitext( file )[1] in exts):
-      filename = file
-      break
-
-  if filename != None:
-    xbmc.executebuiltin('Extract("%s","%s")' % (zip,__temp__,), True)
-  else:
-    xbmc.executebuiltin((u'Notification(%s,%s)' % (__scriptname__ , __language__(33007))))
-  return filename
-
 def Download(filename):
   listitem = xbmcgui.ListItem(label=filename)
   xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]),url=filename,listitem=listitem,isFolder=False)
 
-if params['action'] == 'manualsearch':
-  __msg_box__.ok('LocalSubtitle', __language__(33001))
+if params['action'] == 'search':
   Search()
-
-elif params['action'] == 'search':
-  Search()
-
-elif params['action'] == 'download':
-  if xbmcvfs.exists(__subtitle__):
-    Download(__subtitle__)
-
-elif params['action'] == 'browse':
-  exts = ''
-  for ext in __exts__:
-    exts = exts + '|' + ext
-  exts = exts[1:]
-  while True:
-    subtitlefile = __msg_box__.browse(1, __language__(33003), "video", ".zip|" + exts, False, False, __subtitlepath__, False)
-    if subtitlefile != __subtitlepath__:
-      if subtitlefile.endswith('.zip'):
-        subtitlefile = unzip(subtitlefile, __exts__)
-    if subtitlefile == __subtitlepath__ or subtitlefile != None:
-      break
-
-  if subtitlefile != __subtitlepath__:
-    Download(subtitlefile)
 
 elif params['action'] == 'browsedual':
   while True:
-    if __addon__.getSetting('dualsub_swap') == 'true':
-      title = __language__(33006)
-    else:
-      title = __language__(33005)
-    subtitlefile1 = __msg_box__.browse(1, title, "video", ".zip|.srt", False, False, __subtitlepath__, False)
-    if subtitlefile1 != __subtitlepath__:
-      if subtitlefile1.endswith('.zip'):
-        subtitlefile1 = unzip(subtitlefile1, [ ".srt" ])
-    if subtitlefile1 == __subtitlepath__ or subtitlefile1 != None:
+    playingMovie = xbmc.Player().getPlayingFile()
+    playingPath = playingMovie.rsplit('/', maxsplit=1)[0]
+    playingFilename = playingMovie.rsplit('/', maxsplit=1)[1]
+    playingFilenameWithoutExt = os.path.splitext(playingFilename)[0]
+    dirs, files = xbmcvfs.listdir(playingPath)
+    languages = []
+    languageFiles = []
+    subs = []
+
+    title = __language__(33005)
+
+    for file in files:
+      if file.startswith(playingFilenameWithoutExt) and os.path.splitext(file)[1] == ".srt":
+        languageFiles.append(file)
+        languages.append(os.path.splitext(file[len(playingFilenameWithoutExt)+1:])[0])
+    result = xbmcgui.Dialog().multiselect(title, languages)
+    if result == None:
       break
+    if len(result) == 2:
+      subtitlefile1 = playingPath + '/' + languageFiles[result[0]]
+      subtitlefile2 = playingPath + '/' + languageFiles[result[1]]
 
-  if subtitlefile1 != __subtitlepath__:
-    subs=[]
-    subs.append(subtitlefile1)
-
-    while True:
-      if __addon__.getSetting('dualsub_swap') == 'true':
-        title = __language__(33005)
-      else:
-        title = __language__(33006)
-      title = title + ' ' + __language__(33009)
-      subtitlefile2 = __msg_box__.browse(1, title, "video", ".zip|.srt", False, False, __subtitlepath__, False)
-      if subtitlefile2 == __subtitlepath__:
-        break
-      else:
-        if subtitlefile2.endswith('.zip'):
-          subtitlefile2 = unzip(subtitlefile2, [ ".srt" ])
-        if subtitlefile2 != None:
-          subs.append(subtitlefile2)
-          break
-
-    finalfile = merge(subs)
-    Download(finalfile)
+      finalfile = merge([subtitlefile1, subtitlefile2])
+      Download(finalfile)
+      break
 
 elif params['action'] == 'settings':
   __addon__.openSettings()

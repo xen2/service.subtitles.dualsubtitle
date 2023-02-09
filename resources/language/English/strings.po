@@ -14,23 +14,11 @@ msgstr ""
 
 #English
 
-msgctxt "#33001"
-msgid "Manual search not supported"
-
-msgctxt "#33002"
-msgid "Browse Single Subtitle..."
-
-msgctxt "#33003"
-msgid "Choose Subtitle File"
-
 msgctxt "#33004"
 msgid "Browse Dual Subtitles..."
 
 msgctxt "#33005"
-msgid "Choose Bottom Subtitle File"
-
-msgctxt "#33006"
-msgid "Choose Top Subtitle File"
+msgid "Choose two subtitles..."
 
 msgctxt "#33007"
 msgid "Zip file does not contain a supported subtitle file"
